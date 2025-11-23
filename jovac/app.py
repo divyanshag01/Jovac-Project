@@ -4,6 +4,17 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import os
+
+st.write("## 🔍 DEBUG INFO")
+st.write("**Current working directory:**", os.getcwd())
+
+st.write("**Files in this directory:**")
+st.write(os.listdir("."))
+
+st.write("**Files in parent directory:**")
+st.write(os.listdir(".."))
+
 
 st.title("AI-Based Gas Diffusion Layer Performance Classifier")
 st.write("Predict the performance category (Low, Medium, High) of GDL based on your parameters.")
