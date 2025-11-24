@@ -17,37 +17,10 @@ st.markdown("""
 <style>
     .title { font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 5px; }
     .subtitle { text-align: center; font-size: 15px; color: #bbb; margin-bottom: 35px; }
-
-    /* Toggle switch styling */
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 64px;
-      height: 30px;
-    }
-    .switch input {display:none;}
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-color: #666;
-      transition: .4s;
-      border-radius: 30px;
-    }
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 22px; width: 22px;
-      left: 4px; bottom: 4px;
-      background-color: white;
-      transition: .4s;
-      border-radius: 50%;
-    }
-    input:checked + .slider {
-      background-color: #3b82f6;
-    }
-    input:checked + .slider:before {
-      transform: translateX(34px);
+    .section-title { font-size: 20px; font-weight: 600; margin-top: 20px; margin-bottom: 8px; }
+    .prediction-box {
+        padding: 12px; border-radius: 8px; font-size: 22px;
+        font-weight: 600; text-align: center; margin-top: 15px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -67,31 +40,17 @@ def load_artifacts():
 
 model, scaler = load_artifacts()
 
-
 # --------------------------------------------------------------
-# SIDEBAR — TRUE TOGGLE (Sliders <-> Custom Inputs)
+# SIDEBAR — SEGMENTED CONTROL TOGGLE (Sliders <-> Custom)
 # --------------------------------------------------------------
 
 st.sidebar.markdown("### Input Mode")
 
-# HTML toggle switch
-toggle_html = """
-<label class="switch">
-  <input type="checkbox" id="toggle_mode">
-  <span class="slider"></span>
-</label>
-"""
-
-# Render custom toggle
-st.sidebar.markdown(toggle_html, unsafe_allow_html=True)
-
-# Invisible checkbox to capture state
-mode_toggle = st.sidebar.checkbox(" ", key="toggle_real", label_visibility="hidden")
-
-# Map toggle to mode
-input_mode = "Custom Input" if mode_toggle else "Sliders"
-
-st.sidebar.write(f"**Current Mode:** {input_mode}")
+input_mode = st.sidebar.segmented_control(
+    "Select Input Type",
+    options=["Sliders", "Custom Input"],
+    default="Sliders"
+)
 
 # --------------------------------------------------------------
 # PARAMETER INPUT SECTION
