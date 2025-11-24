@@ -39,9 +39,9 @@ st.markdown('<div class="subtitle">Predict performance from GDL microstructure p
 def init_state():
     defaults = {
         "porosity_val": 0.65,
-        "pore_val": 35.0,
+        "pore_val": 30.0,
         "angle_val": 45.0,
-        "wet_val": 60.0,
+        "wet_val": 120.0,
         "opt_params": None
     }
     for k, v in defaults.items():
@@ -62,17 +62,20 @@ def load_artifacts():
 model, scaler = load_artifacts()
 
 # -------------------------------------------------
-# FAST OPTIMAL PARAMETER FINDER
+# FIXED RANGE OPTIMAL PARAMETER FINDER
+# based on actual dataset stats
 # -------------------------------------------------
-def find_optimal_parameters_fast(model, scaler, samples=1000):
+def find_optimal_parameters_fast(model, scaler, samples=2000):
     best_prob = -1
     best_params = None
 
     for _ in range(samples):
-        p = random.uniform(0.3, 0.9)
-        ps = random.uniform(1.0, 100.0)
-        a = random.uniform(0.0, 90.0)
-        w = random.uniform(0.0, 120.0)
+
+        # CORRECTED RANGES FROM YOUR REAL DATA
+        p = random.uniform(0.30, 0.90)       # porosity
+        ps = random.uniform(10.0, 50.0)       # pore size
+        a = random.uniform(0.0, 90.0)         # angle
+        w = random.uniform(90.0, 150.0)       # wettability (VERY IMPORTANT FIX)
 
         X = pd.DataFrame([{
             "Porosity": p,
@@ -118,21 +121,23 @@ if st.session_state.opt_params:
     st.session_state.opt_params = None
 
 # -------------------------------------------------
-# PARAMETERS (SLIDER + CUSTOM INPUT) WITH KEYS
+# PARAMETERS (SLIDER + CUSTOM INPUT) WITH PROPER RANGES
 # -------------------------------------------------
 st.sidebar.header("Parameters")
 
 if input_mode == "Sliders":
+
+    # CORRECTED RANGES
     porosity = st.sidebar.slider(
         "Porosity", 
-        0.3, 0.9,
+        0.30, 0.90,
         float(st.session_state.porosity_val),
         step=0.01,
         key="porosity_slider"
     )
     pore_size = st.sidebar.slider(
         "Pore Size (µm)",
-        1.0, 100.0,
+        10.0, 50.0,
         float(st.session_state.pore_val),
         step=1.0,
         key="pore_slider"
@@ -146,43 +151,42 @@ if input_mode == "Sliders":
     )
     wettability = st.sidebar.slider(
         "Wettability Contact Angle (°)",
-        0.0, 120.0,
+        90.0, 150.0,     # BIG FIX
         float(st.session_state.wet_val),
         step=1.0,
         key="wet_slider"
     )
 
-else:  # Custom inputs
+else:
     porosity = st.sidebar.number_input(
-        "Porosity (0.3 - 0.9)", 
-        min_value=0.3, max_value=0.9,
+        "Porosity (0.30–0.90)", 
+        0.30, 0.90,
         value=float(st.session_state.porosity_val),
-        step=0.001, format="%.3f",
+        step=0.001,
         key="porosity_input"
     )
     pore_size = st.sidebar.number_input(
-        "Pore Size (µm)",
-        min_value=1.0, max_value=100.0,
+        "Pore Size (µm)", 10.0, 50.0,
         value=float(st.session_state.pore_val),
         step=0.5,
         key="pore_input"
     )
     fiber_angle = st.sidebar.number_input(
-        "Fiber Arrangement Angle (°)",
-        min_value=0.0, max_value=90.0,
+        "Fiber Arrangement Angle (°)", 
+        0.0, 90.0,
         value=float(st.session_state.angle_val),
         step=0.5,
         key="angle_input"
     )
     wettability = st.sidebar.number_input(
-        "Wettability Contact Angle (°)",
-        min_value=0.0, max_value=120.0,
+        "Wettability Contact Angle (°)", 
+        90.0, 150.0,
         value=float(st.session_state.wet_val),
         step=0.5,
         key="wet_input"
     )
 
-# update current values
+# update session state
 st.session_state.porosity_val = porosity
 st.session_state.pore_val = pore_size
 st.session_state.angle_val = fiber_angle
@@ -194,6 +198,7 @@ st.session_state.wet_val = wettability
 st.markdown("### Performance Prediction")
 
 if st.button("Predict Performance", use_container_width=True):
+
     X = pd.DataFrame([{
         "Porosity": porosity,
         "Pore_Size_um": pore_size,
@@ -216,18 +221,15 @@ if st.button("Predict Performance", use_container_width=True):
         unsafe_allow_html=True
     )
 
-    # Probability bar chart
     fig = px.bar(
         x=model.classes_,
         y=probs,
         color=model.classes_,
         color_discrete_map=color_map,
-        labels={"x": "Class", "y": "Probability"},
         height=330
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Radar chart
     labels = ["Porosity", "Pore Size", "Fiber Angle", "Wettability"]
     values = [porosity, pore_size, fiber_angle, wettability]
 
@@ -237,7 +239,6 @@ if st.button("Predict Performance", use_container_width=True):
         theta=labels + [labels[0]],
         fill='toself'
     ))
-    radar.update_layout(height=400, showlegend=False)
     st.plotly_chart(radar, use_container_width=True)
 
 # -------------------------------------------------
@@ -246,7 +247,8 @@ if st.button("Predict Performance", use_container_width=True):
 st.markdown("### Optimal Performance Parameters")
 
 if st.button("Find Optimal Parameters", use_container_width=True):
-    with st.spinner("Searching (1000 samples)..."):
+
+    with st.spinner("Searching based on real dataset ranges..."):
         best_params, best_prob = find_optimal_parameters_fast(model, scaler)
 
     p, ps, a, w = best_params
@@ -258,7 +260,7 @@ if st.button("Find Optimal Parameters", use_container_width=True):
     st.write(f"- Fiber Angle: **{a:.2f}°**")
     st.write(f"- Wettability: **{w:.2f}°**")
 
-    # Radar chart
+    # radar
     labels = ["Porosity", "Pore Size", "Fiber Angle", "Wettability"]
     values = [p, ps, a, w]
 
@@ -268,10 +270,8 @@ if st.button("Find Optimal Parameters", use_container_width=True):
         theta=labels + [labels[0]],
         fill='toself'
     ))
-    radar2.update_layout(height=400, showlegend=False)
     st.plotly_chart(radar2, use_container_width=True)
 
-    # Save to session_state for auto-fill
     if st.button("Use These Parameters", use_container_width=True):
         st.session_state.opt_params = best_params
         st.experimental_rerun()
@@ -282,10 +282,10 @@ if st.button("Find Optimal Parameters", use_container_width=True):
 st.markdown("### Recommended High-Performance Ranges")
 
 st.info("""
-Ranges associated with **High** performance:
+Based on your real dataset distribution:
 
-- Porosity: **0.70 – 0.78**
+- Porosity: **0.70 – 0.85**
 - Pore Size: **30 – 45 µm**
-- Fiber Angle: **38° – 50°**
-- Wettability: **50° – 75°**
+- Fiber Angle: **38° – 55°**
+- Wettability: **110° – 145°**
 """)
