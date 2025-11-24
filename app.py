@@ -16,11 +16,38 @@ st.set_page_config(page_title="GDL Performance Classifier", layout="centered")
 st.markdown("""
 <style>
     .title { font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 5px; }
-    .subtitle { text-align: center; font-size: 15px; color: #555; margin-bottom: 35px; }
-    .section-title { font-size: 20px; font-weight: 600; margin-top: 20px; margin-bottom: 8px; }
-    .prediction-box {
-        padding: 12px; border-radius: 8px; font-size: 22px;
-        font-weight: 600; text-align: center; margin-top: 15px;
+    .subtitle { text-align: center; font-size: 15px; color: #bbb; margin-bottom: 35px; }
+
+    /* Toggle switch styling */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 64px;
+      height: 30px;
+    }
+    .switch input {display:none;}
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #666;
+      transition: .4s;
+      border-radius: 30px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 22px; width: 22px;
+      left: 4px; bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #3b82f6;
+    }
+    input:checked + .slider:before {
+      transform: translateX(34px);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -42,16 +69,32 @@ model, scaler = load_artifacts()
 
 
 # --------------------------------------------------------------
-# SIDEBAR — INPUT MODE TOGGLE (Sliders vs Custom Input)
+# SIDEBAR — TRUE TOGGLE (Sliders <-> Custom Inputs)
 # --------------------------------------------------------------
-st.sidebar.header("Input Mode")
-input_mode = st.sidebar.radio(
-    "Choose how to enter values:",
-    ["Sliders", "Custom Input"]
-)
+
+st.sidebar.markdown("### Input Mode")
+
+# HTML toggle switch
+toggle_html = """
+<label class="switch">
+  <input type="checkbox" id="toggle_mode">
+  <span class="slider"></span>
+</label>
+"""
+
+# Render custom toggle
+st.sidebar.markdown(toggle_html, unsafe_allow_html=True)
+
+# Invisible checkbox to capture state
+mode_toggle = st.sidebar.checkbox(" ", key="toggle_real", label_visibility="hidden")
+
+# Map toggle to mode
+input_mode = "Custom Input" if mode_toggle else "Sliders"
+
+st.sidebar.write(f"**Current Mode:** {input_mode}")
 
 # --------------------------------------------------------------
-# PARAMETER INPUT SECTION (Controlled by Toggle)
+# PARAMETER INPUT SECTION
 # --------------------------------------------------------------
 st.sidebar.header("Parameters")
 
@@ -62,9 +105,10 @@ if input_mode == "Sliders":
     wettability = st.sidebar.slider("Wettability Contact Angle (°)", 0.0, 120.0, 60.0, step=1.0)
 
 else:
+    # Custom numeric inputs
     porosity = st.sidebar.number_input(
-        "Porosity (0.3 - 0.9)", 
-        min_value=0.3, max_value=0.9, value=0.65,
+        "Porosity (0.3 - 0.9)",
+        min_value=0.3, max_value=0.9, value=0.65, 
         step=0.001, format="%.3f"
     )
     pore_size = st.sidebar.number_input(
@@ -87,7 +131,7 @@ else:
 # --------------------------------------------------------------
 # MAIN PAGE — PREDICTION
 # --------------------------------------------------------------
-st.markdown('<div class="section-title">Performance Prediction</div>', unsafe_allow_html=True)
+st.markdown("### Performance Prediction")
 
 if st.button("Predict Performance", use_container_width=True):
 
@@ -105,16 +149,24 @@ if st.button("Predict Performance", use_container_width=True):
     class_order = list(model.classes_)
     prob_map = {cls: probs[class_order.index(cls)] for cls in class_order}
 
+    # Color mapping
     color_map = {"Low": "#d9534f", "Medium": "#f0ad4e", "High": "#5cb85c"}
 
     # Prediction Box
     st.markdown(
-        f'<div class="prediction-box" style="background-color:{color_map[pred]}; color:white;">'
-        f"Predicted Class: {pred}</div>",
-        unsafe_allow_html=True
+        f"""
+        <div style="background:{color_map[pred]}; 
+                    padding:12px; border-radius:8px;
+                    font-size:22px; color:white; 
+                    font-weight:600; text-align:center;
+                    margin-top:10px;">
+            Predicted Class: {pred}
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    # Probability Chart
+    # Probability Bar Chart
     fig = px.bar(
         x=list(prob_map.keys()), 
         y=list(prob_map.values()),
@@ -144,17 +196,18 @@ if st.button("Predict Performance", use_container_width=True):
     st.plotly_chart(radar, use_container_width=True)
 
 
+
 # --------------------------------------------------------------
 # RECOMMENDED RANGES
 # --------------------------------------------------------------
-st.markdown('<div class="section-title">Recommended High-Performance Ranges</div>', unsafe_allow_html=True)
+st.markdown("### Recommended High-Performance Ranges")
 
 st.info("""
 Values that commonly lead to the **High** performance class:
 
-- Porosity: **0.70 – 0.78**
-- Pore Size: **30 – 45 µm**
-- Fiber Angle: **38° – 50°**
+- Porosity: **0.70 – 0.78**  
+- Pore Size: **30 – 45 µm**  
+- Fiber Angle: **38° – 50°**  
 - Wettability: **50° – 75°**
 
 These ranges usually produce the highest-performance GDL configurations.
