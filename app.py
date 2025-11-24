@@ -34,10 +34,21 @@ st.markdown('<div class="title">GDL Performance Classifier</div>', unsafe_allow_
 st.markdown('<div class="subtitle">Predict performance from GDL microstructure parameters</div>', unsafe_allow_html=True)
 
 # -------------------------------------------------
-# SESSION STATE (to store optimal parameters)
+# SESSION STATE (store current parameter values)
 # -------------------------------------------------
-if "opt_params" not in st.session_state:
-    st.session_state.opt_params = None
+def init_state():
+    defaults = {
+        "porosity_val": 0.65,
+        "pore_val": 35.0,
+        "angle_val": 45.0,
+        "wet_val": 60.0,
+        "opt_params": None
+    }
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+init_state()
 
 # -------------------------------------------------
 # LOAD MODEL + SCALER
@@ -73,8 +84,8 @@ def find_optimal_parameters_fast(model, scaler, samples=1000):
         X_scaled = scaler.transform(X)
         probs = model.predict_proba(X_scaled)[0]
 
-        high_index = list(model.classes_).index("High")
-        high_prob = probs[high_index]
+        high_idx = list(model.classes_).index("High")
+        high_prob = probs[high_idx]
 
         if high_prob > best_prob:
             best_prob = high_prob
@@ -83,7 +94,7 @@ def find_optimal_parameters_fast(model, scaler, samples=1000):
     return best_params, best_prob
 
 # -------------------------------------------------
-# SIDEBAR — SEGMENTED TOGGLE
+# SIDEBAR — SEGMENTED CONTROL TOGGLE
 # -------------------------------------------------
 st.sidebar.subheader("Input Mode")
 
@@ -94,51 +105,88 @@ input_mode = st.sidebar.segmented_control(
 )
 
 # -------------------------------------------------
-# PARAMETER INPUT AREA (Sliders / Custom)
+# AUTO-FILL OPTIMAL PARAMETERS
+# -------------------------------------------------
+if st.session_state.opt_params:
+    p, ps, a, w = st.session_state.opt_params
+
+    st.session_state.porosity_val = float(p)
+    st.session_state.pore_val = float(ps)
+    st.session_state.angle_val = float(a)
+    st.session_state.wet_val = float(w)
+
+    # Clear so it doesn't loop forever
+    st.session_state.opt_params = None
+
+# -------------------------------------------------
+# PARAMETER INPUT WITH KEYS (IMPORTANT)
 # -------------------------------------------------
 st.sidebar.header("Parameters")
 
-# Load optimal params if button pressed
-if st.session_state.opt_params:
-    default_p, default_ps, default_a, default_w = st.session_state.opt_params
-else:
-    default_p, default_ps, default_a, default_w = 0.65, 35.0, 45.0, 60.0
-
 if input_mode == "Sliders":
-    porosity = st.sidebar.slider("Porosity", 0.3, 0.9, default_p, step=0.01)
-    pore_size = st.sidebar.slider("Pore Size (µm)", 1.0, 100.0, default_ps, step=1.0)
-    fiber_angle = st.sidebar.slider("Fiber Arrangement Angle (°)", 0, 90, default_a, step=1)
-    wettability = st.sidebar.slider("Wettability Contact Angle (°)", 0.0, 120.0, default_w, step=1.0)
+    porosity = st.sidebar.slider(
+        "Porosity", 0.3, 0.9,
+        st.session_state.porosity_val,
+        step=0.01,
+        key="porosity_key"
+    )
+    pore_size = st.sidebar.slider(
+        "Pore Size (µm)", 1.0, 100.0,
+        st.session_state.pore_val,
+        step=1.0,
+        key="pore_key"
+    )
+    fiber_angle = st.sidebar.slider(
+        "Fiber Arrangement Angle (°)", 0, 90,
+        st.session_state.angle_val,
+        step=1,
+        key="angle_key"
+    )
+    wettability = st.sidebar.slider(
+        "Wettability Contact Angle (°)", 0.0, 120.0,
+        st.session_state.wet_val,
+        step=1.0,
+        key="wet_key"
+    )
 
-else:
+else:  # Custom Input Mode
     porosity = st.sidebar.number_input(
-        "Porosity (0.3 - 0.9)",
-        min_value=0.3, max_value=0.9, value=default_p,
-        step=0.001, format="%.3f"
+        "Porosity (0.3 - 0.9)", 0.3, 0.9,
+        value=st.session_state.porosity_val,
+        step=0.001, format="%.3f",
+        key="porosity_input"
     )
     pore_size = st.sidebar.number_input(
-        "Pore Size (µm)",
-        min_value=1.0, max_value=100.0, value=default_ps,
-        step=0.5
+        "Pore Size (µm)", 1.0, 100.0,
+        value=st.session_state.pore_val,
+        step=0.5,
+        key="pore_input"
     )
     fiber_angle = st.sidebar.number_input(
-        "Fiber Arrangement Angle (°)",
-        min_value=0.0, max_value=90.0, value=default_a,
-        step=0.5
+        "Fiber Arrangement Angle (°)", 0.0, 90.0,
+        value=st.session_state.angle_val,
+        step=0.5,
+        key="angle_input"
     )
     wettability = st.sidebar.number_input(
-        "Wettability Contact Angle (°)",
-        min_value=0.0, max_value=120.0, value=default_w,
-        step=0.5
+        "Wettability Contact Angle (°)", 0.0, 120.0,
+        value=st.session_state.wet_val,
+        step=0.5,
+        key="wet_input"
     )
 
+# Update session state with any changes user makes
+st.session_state.porosity_val = porosity
+st.session_state.pore_val = pore_size
+st.session_state.angle_val = fiber_angle
+st.session_state.wet_val = wettability
+
 # -------------------------------------------------
-# MAIN — PREDICTION SECTION
+# MAIN — PREDICT PERFORMANCE
 # -------------------------------------------------
 st.markdown("### Performance Prediction")
 
 if st.button("Predict Performance", use_container_width=True):
-
     X = pd.DataFrame([{
         "Porosity": porosity,
         "Pore_Size_um": pore_size,
@@ -155,18 +203,19 @@ if st.button("Predict Performance", use_container_width=True):
 
     color_map = {"Low": "#d9534f", "Medium": "#f0ad4e", "High": "#5cb85c"}
 
+    # Prediction Box
     st.markdown(
         f"""
         <div class="prediction-box" style="background:{color_map[pred]};">
             Predicted Class: {pred}
         </div>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
 
-    # Bar Chart
+    # Probability bar chart
     fig = px.bar(
-        x=list(prob_map.keys()), 
+        x=list(prob_map.keys()),
         y=list(prob_map.values()),
         labels={"x": "Class", "y": "Probability"},
         color=list(prob_map.keys()),
@@ -175,7 +224,7 @@ if st.button("Predict Performance", use_container_width=True):
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Radar Chart
+    # Radar chart
     categories = ["Porosity", "Pore Size", "Fiber Angle", "Wettability"]
     values = [porosity, pore_size, fiber_angle, wettability]
 
@@ -183,27 +232,28 @@ if st.button("Predict Performance", use_container_width=True):
     radar.add_trace(go.Scatterpolar(
         r=values + [values[0]],
         theta=categories + [categories[0]],
-        fill='toself',
-        line=dict(color="#3b7dd8")
+        fill='toself'
     ))
-    radar.update_layout(showlegend=False, height=400)
+    radar.update_layout(height=400, showlegend=False)
     st.plotly_chart(radar, use_container_width=True)
 
 # -------------------------------------------------
-# OPTIMAL PARAMETERS SECTION
+# OPTIMAL PARAMETER FINDER
 # -------------------------------------------------
 st.markdown("### Optimal Performance Parameters")
 
 if st.button("Find Optimal Parameters", use_container_width=True):
 
-    with st.spinner("Searching for high-performance configuration..."):
-        best_params, best_prob = find_optimal_parameters_fast(model, scaler, samples=1000)
+    with st.spinner("Searching (1000 samples)..."):
+        best_params, best_prob = find_optimal_parameters_fast(
+            model, scaler, samples=1000
+        )
 
     p, ps, a, w = best_params
 
-    st.success(f"Highest probability for 'High' class: **{best_prob:.4f}**")
+    st.success(f"Highest probability of 'High': **{best_prob:.4f}**")
 
-    st.write("### Best Parameter Set:")
+    # Show values
     st.write(f"- Porosity: **{p:.3f}**")
     st.write(f"- Pore Size: **{ps:.2f} µm**")
     st.write(f"- Fiber Angle: **{a:.2f}°**")
@@ -217,15 +267,14 @@ if st.button("Find Optimal Parameters", use_container_width=True):
     radar2.add_trace(go.Scatterpolar(
         r=values + [values[0]],
         theta=categories + [categories[0]],
-        fill='toself',
-        line=dict(color="#2a72d6")
+        fill='toself'
     ))
-    radar2.update_layout(showlegend=False, height=400)
+    radar2.update_layout(height=400, showlegend=False)
     st.plotly_chart(radar2, use_container_width=True)
 
-    # Button to load these params into input UI
+    # Store to session state
     if st.button("Use These Parameters", use_container_width=True):
-        st.session_state.opt_params = (p, ps, a, w)
+        st.session_state.opt_params = best_params
         st.experimental_rerun()
 
 # -------------------------------------------------
@@ -234,7 +283,7 @@ if st.button("Find Optimal Parameters", use_container_width=True):
 st.markdown("### Recommended High-Performance Ranges")
 
 st.info("""
-These ranges typically produce higher-performance outcomes:
+Values that commonly produce **High** performance:
 
 - Porosity: **0.70 – 0.78**
 - Pore Size: **30 – 45 µm**
