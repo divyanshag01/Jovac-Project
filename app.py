@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 import numpy as np
+import random
 import plotly.express as px
 import plotly.graph_objects as go
 
@@ -40,10 +41,43 @@ def load_artifacts():
 
 model, scaler = load_artifacts()
 
-# --------------------------------------------------------------
-# SIDEBAR — SEGMENTED CONTROL TOGGLE (Sliders <-> Custom)
-# --------------------------------------------------------------
 
+# ---------------------------------------------
+# FAST OPTIMAL PARAMETER FINDER
+# ---------------------------------------------
+def find_optimal_parameters_fast(model, scaler, samples=1000):
+    best_prob = -1
+    best_params = None
+
+    for _ in range(samples):
+        p = random.uniform(0.3, 0.9)
+        ps = random.uniform(1, 100)
+        a = random.uniform(0, 90)
+        w = random.uniform(0, 120)
+
+        X = pd.DataFrame([{
+            "Porosity": p,
+            "Pore_Size_um": ps,
+            "Fiber_Arrangement_Angle": a,
+            "Wettability_Contact_Angle": w
+        }])
+
+        X_scaled = scaler.transform(X)
+        probs = model.predict_proba(X_scaled)[0]
+
+        idx = list(model.classes_).index("High")
+        high_prob = probs[idx]
+
+        if high_prob > best_prob:
+            best_prob = high_prob
+            best_params = (p, ps, a, w)
+
+    return best_params, best_prob
+
+
+# --------------------------------------------------------------
+# SIDEBAR — SEGMENTED CONTROL TOGGLE
+# --------------------------------------------------------------
 st.sidebar.markdown("### Input Mode")
 
 input_mode = st.sidebar.segmented_control(
@@ -64,10 +98,9 @@ if input_mode == "Sliders":
     wettability = st.sidebar.slider("Wettability Contact Angle (°)", 0.0, 120.0, 60.0, step=1.0)
 
 else:
-    # Custom numeric inputs
     porosity = st.sidebar.number_input(
         "Porosity (0.3 - 0.9)",
-        min_value=0.3, max_value=0.9, value=0.65, 
+        min_value=0.3, max_value=0.9, value=0.65,
         step=0.001, format="%.3f"
     )
     pore_size = st.sidebar.number_input(
@@ -108,10 +141,8 @@ if st.button("Predict Performance", use_container_width=True):
     class_order = list(model.classes_)
     prob_map = {cls: probs[class_order.index(cls)] for cls in class_order}
 
-    # Color mapping
     color_map = {"Low": "#d9534f", "Medium": "#f0ad4e", "High": "#5cb85c"}
 
-    # Prediction Box
     st.markdown(
         f"""
         <div style="background:{color_map[pred]}; 
@@ -127,7 +158,7 @@ if st.button("Predict Performance", use_container_width=True):
 
     # Probability Bar Chart
     fig = px.bar(
-        x=list(prob_map.keys()), 
+        x=list(prob_map.keys()),
         y=list(prob_map.values()),
         labels={"x": "Class", "y": "Probability"},
         color=list(prob_map.keys()),
@@ -155,6 +186,40 @@ if st.button("Predict Performance", use_container_width=True):
     st.plotly_chart(radar, use_container_width=True)
 
 
+# --------------------------------------------------------------
+# OPTIMAL PERFORMANCE PARAMETER FINDER
+# --------------------------------------------------------------
+st.markdown("### Optimal Performance Parameters")
+
+if st.button("Find Optimal Parameters", use_container_width=True):
+
+    with st.spinner("Searching for high-performance configuration..."):
+        best_params, best_prob = find_optimal_parameters_fast(model, scaler, samples=1000)
+
+    p, ps, a, w = best_params
+
+    st.success(f"Highest probability for 'High' class: **{best_prob:.4f}**")
+
+    st.write("### Best Parameter Set Found:")
+    st.write(f"- Porosity: **{p:.3f}**")
+    st.write(f"- Pore Size: **{ps:.2f} µm**")
+    st.write(f"- Fiber Angle: **{a:.2f}°**")
+    st.write(f"- Wettability: **{w:.2f}°**")
+
+    # Radar chart for optimal parameters
+    categories = ["Porosity", "Pore Size", "Fiber Angle", "Wettability"]
+    values = [p, ps, a, w]
+
+    radar2 = go.Figure()
+    radar2.add_trace(go.Scatterpolar(
+        r=values + [values[0]],
+        theta=categories + [categories[0]],
+        fill='toself',
+        line=dict(color="#2a72d6")
+    ))
+    radar2.update_layout(showlegend=False, height=400)
+    st.plotly_chart(radar2, use_container_width=True)
+
 
 # --------------------------------------------------------------
 # RECOMMENDED RANGES
@@ -164,10 +229,11 @@ st.markdown("### Recommended High-Performance Ranges")
 st.info("""
 Values that commonly lead to the **High** performance class:
 
-- Porosity: **0.70 – 0.78**  
-- Pore Size: **30 – 45 µm**  
-- Fiber Angle: **38° – 50°**  
+- Porosity: **0.70 – 0.78**
+- Pore Size: **30 – 45 µm**
+- Fiber Angle: **38° – 50°**
 - Wettability: **50° – 75°**
 
 These ranges usually produce the highest-performance GDL configurations.
 """)
+
