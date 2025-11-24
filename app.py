@@ -40,42 +40,6 @@ def load_artifacts():
 
 model, scaler = load_artifacts()
 
-# ---------------------------------------------
-# Optimal Parameter Search
-# ---------------------------------------------
-def find_optimal_parameters(model, scaler):
-    porosity_range = np.linspace(0.3, 0.9, 25)
-    pore_range = np.linspace(1, 100, 25)
-    angle_range = np.linspace(0, 90, 25)
-    wet_range = np.linspace(0, 120, 25)
-
-    best_prob = -1
-    best_params = None
-
-    for p in porosity_range:
-        for ps in pore_range:
-            for a in angle_range:
-                for w in wet_range:
-
-                    X = pd.DataFrame([{
-                        "Porosity": p,
-                        "Pore_Size_um": ps,
-                        "Fiber_Arrangement_Angle": a,
-                        "Wettability_Contact_Angle": w
-                    }])
-
-                    X_scaled = scaler.transform(X)
-                    probs = model.predict_proba(X_scaled)[0]
-
-                    idx = list(model.classes_).index("High")
-                    high_prob = probs[idx]
-
-                    if high_prob > best_prob:
-                        best_prob = high_prob
-                        best_params = (p, ps, a, w)
-
-    return best_params, best_prob
-
 
 # --------------------------------------------------------------
 # SIDEBAR — INPUT MODE TOGGLE (Sliders vs Custom Input)
@@ -97,10 +61,10 @@ if input_mode == "Sliders":
     fiber_angle = st.sidebar.slider("Fiber Arrangement Angle (°)", 0, 90, 45, step=1)
     wettability = st.sidebar.slider("Wettability Contact Angle (°)", 0.0, 120.0, 60.0, step=1.0)
 
-else:  # Custom Inputs
+else:
     porosity = st.sidebar.number_input(
         "Porosity (0.3 - 0.9)", 
-        min_value=0.3, max_value=0.9, value=0.65, 
+        min_value=0.3, max_value=0.9, value=0.65,
         step=0.001, format="%.3f"
     )
     pore_size = st.sidebar.number_input(
@@ -150,7 +114,7 @@ if st.button("Predict Performance", use_container_width=True):
         unsafe_allow_html=True
     )
 
-    # Probability Bar Chart
+    # Probability Chart
     fig = px.bar(
         x=list(prob_map.keys()), 
         y=list(prob_map.values()),
@@ -178,40 +142,6 @@ if st.button("Predict Performance", use_container_width=True):
         height=400
     )
     st.plotly_chart(radar, use_container_width=True)
-
-
-# --------------------------------------------------------------
-# OPTIMAL PARAMETER FINDER
-# --------------------------------------------------------------
-st.markdown('<div class="section-title">Optimal Parameter Finder</div>', unsafe_allow_html=True)
-
-if st.button("Find Optimal Parameters", use_container_width=True):
-
-    with st.spinner("Searching for best-performing configuration..."):
-        best_params, best_prob = find_optimal_parameters(model, scaler)
-
-    p, ps, a, w = best_params
-
-    st.success(f"Highest probability for 'High' class: {best_prob:.4f}")
-
-    st.write("### Best Parameter Set Found:")
-    st.write(f"- Porosity: **{p:.3f}**")
-    st.write(f"- Pore Size: **{ps:.2f} µm**")
-    st.write(f"- Fiber Angle: **{a:.1f}°**")
-    st.write(f"- Wettability: **{w:.1f}°**")
-
-    categories = ["Porosity", "Pore Size", "Fiber Angle", "Wettability"]
-    values = [p, ps, a, w]
-
-    radar2 = go.Figure()
-    radar2.add_trace(go.Scatterpolar(
-        r=values + [values[0]],
-        theta=categories + [categories[0]],
-        fill='toself',
-        line=dict(color="#2a72d6")
-    ))
-    radar2.update_layout(showlegend=False, height=400)
-    st.plotly_chart(radar2, use_container_width=True)
 
 
 # --------------------------------------------------------------
