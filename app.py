@@ -34,7 +34,7 @@ st.markdown('<div class="title">GDL Performance Classifier</div>', unsafe_allow_
 st.markdown('<div class="subtitle">Predict performance from GDL microstructure parameters</div>', unsafe_allow_html=True)
 
 # -------------------------------------------------
-# SESSION STATE (store current parameter values)
+# SESSION STATE INITIALIZATION
 # -------------------------------------------------
 def init_state():
     defaults = {
@@ -70,9 +70,9 @@ def find_optimal_parameters_fast(model, scaler, samples=1000):
 
     for _ in range(samples):
         p = random.uniform(0.3, 0.9)
-        ps = random.uniform(1, 100)
-        a = random.uniform(0, 90)
-        w = random.uniform(0, 120)
+        ps = random.uniform(1.0, 100.0)
+        a = random.uniform(0.0, 90.0)
+        w = random.uniform(0.0, 120.0)
 
         X = pd.DataFrame([{
             "Porosity": p,
@@ -105,7 +105,7 @@ input_mode = st.sidebar.segmented_control(
 )
 
 # -------------------------------------------------
-# AUTO-FILL OPTIMAL PARAMETERS
+# AUTO-APPLY OPTIMAL PARAMETERS ON NEXT RUN
 # -------------------------------------------------
 if st.session_state.opt_params:
     p, ps, a, w = st.session_state.opt_params
@@ -115,74 +115,81 @@ if st.session_state.opt_params:
     st.session_state.angle_val = float(a)
     st.session_state.wet_val = float(w)
 
-    # Clear so it doesn't loop forever
     st.session_state.opt_params = None
 
 # -------------------------------------------------
-# PARAMETER INPUT WITH KEYS (IMPORTANT)
+# PARAMETERS (SLIDER + CUSTOM INPUT) WITH KEYS
 # -------------------------------------------------
 st.sidebar.header("Parameters")
 
 if input_mode == "Sliders":
     porosity = st.sidebar.slider(
-        "Porosity", 0.3, 0.9,
-        st.session_state.porosity_val,
+        "Porosity", 
+        0.3, 0.9,
+        float(st.session_state.porosity_val),
         step=0.01,
-        key="porosity_key"
+        key="porosity_slider"
     )
     pore_size = st.sidebar.slider(
-        "Pore Size (µm)", 1.0, 100.0,
-        st.session_state.pore_val,
+        "Pore Size (µm)",
+        1.0, 100.0,
+        float(st.session_state.pore_val),
         step=1.0,
-        key="pore_key"
+        key="pore_slider"
     )
     fiber_angle = st.sidebar.slider(
-        "Fiber Arrangement Angle (°)", 0, 90,
-        st.session_state.angle_val,
-        step=1,
-        key="angle_key"
+        "Fiber Arrangement Angle (°)",
+        0.0, 90.0,
+        float(st.session_state.angle_val),
+        step=0.5,
+        key="angle_slider"
     )
     wettability = st.sidebar.slider(
-        "Wettability Contact Angle (°)", 0.0, 120.0,
-        st.session_state.wet_val,
+        "Wettability Contact Angle (°)",
+        0.0, 120.0,
+        float(st.session_state.wet_val),
         step=1.0,
-        key="wet_key"
+        key="wet_slider"
     )
 
-else:  # Custom Input Mode
+else:  # Custom inputs
     porosity = st.sidebar.number_input(
-        "Porosity (0.3 - 0.9)", 0.3, 0.9,
-        value=st.session_state.porosity_val,
+        "Porosity (0.3 - 0.9)", 
+        min_value=0.3, max_value=0.9,
+        value=float(st.session_state.porosity_val),
         step=0.001, format="%.3f",
         key="porosity_input"
     )
     pore_size = st.sidebar.number_input(
-        "Pore Size (µm)", 1.0, 100.0,
-        value=st.session_state.pore_val,
+        "Pore Size (µm)",
+        min_value=1.0, max_value=100.0,
+        value=float(st.session_state.pore_val),
         step=0.5,
         key="pore_input"
     )
     fiber_angle = st.sidebar.number_input(
-        "Fiber Arrangement Angle (°)", 0.0, 90.0,
-        value=st.session_state.angle_val,
+        "Fiber Arrangement Angle (°)",
+        min_value=0.0, max_value=90.0,
+        value=float(st.session_state.angle_val),
         step=0.5,
         key="angle_input"
     )
     wettability = st.sidebar.number_input(
-        "Wettability Contact Angle (°)", 0.0, 120.0,
-        value=st.session_state.wet_val,
+        "Wettability Contact Angle (°)",
+        min_value=0.0, max_value=120.0,
+        value=float(st.session_state.wet_val),
         step=0.5,
         key="wet_input"
     )
 
-# Update session state with any changes user makes
+# update current values
 st.session_state.porosity_val = porosity
 st.session_state.pore_val = pore_size
 st.session_state.angle_val = fiber_angle
 st.session_state.wet_val = wettability
 
 # -------------------------------------------------
-# MAIN — PREDICT PERFORMANCE
+# PREDICTION SECTION
 # -------------------------------------------------
 st.markdown("### Performance Prediction")
 
@@ -198,12 +205,8 @@ if st.button("Predict Performance", use_container_width=True):
     pred = model.predict(X_scaled)[0]
     probs = model.predict_proba(X_scaled)[0]
 
-    class_order = list(model.classes_)
-    prob_map = {cls: probs[class_order.index(cls)] for cls in class_order}
-
     color_map = {"Low": "#d9534f", "Medium": "#f0ad4e", "High": "#5cb85c"}
 
-    # Prediction Box
     st.markdown(
         f"""
         <div class="prediction-box" style="background:{color_map[pred]};">
@@ -215,64 +218,60 @@ if st.button("Predict Performance", use_container_width=True):
 
     # Probability bar chart
     fig = px.bar(
-        x=list(prob_map.keys()),
-        y=list(prob_map.values()),
-        labels={"x": "Class", "y": "Probability"},
-        color=list(prob_map.keys()),
+        x=model.classes_,
+        y=probs,
+        color=model.classes_,
         color_discrete_map=color_map,
+        labels={"x": "Class", "y": "Probability"},
         height=330
     )
     st.plotly_chart(fig, use_container_width=True)
 
     # Radar chart
-    categories = ["Porosity", "Pore Size", "Fiber Angle", "Wettability"]
+    labels = ["Porosity", "Pore Size", "Fiber Angle", "Wettability"]
     values = [porosity, pore_size, fiber_angle, wettability]
 
     radar = go.Figure()
     radar.add_trace(go.Scatterpolar(
         r=values + [values[0]],
-        theta=categories + [categories[0]],
+        theta=labels + [labels[0]],
         fill='toself'
     ))
     radar.update_layout(height=400, showlegend=False)
     st.plotly_chart(radar, use_container_width=True)
 
 # -------------------------------------------------
-# OPTIMAL PARAMETER FINDER
+# OPTIMAL PARAMETERS
 # -------------------------------------------------
 st.markdown("### Optimal Performance Parameters")
 
 if st.button("Find Optimal Parameters", use_container_width=True):
-
     with st.spinner("Searching (1000 samples)..."):
-        best_params, best_prob = find_optimal_parameters_fast(
-            model, scaler, samples=1000
-        )
+        best_params, best_prob = find_optimal_parameters_fast(model, scaler)
 
     p, ps, a, w = best_params
 
-    st.success(f"Highest probability of 'High': **{best_prob:.4f}**")
+    st.success(f"Best probability of 'High': **{best_prob:.4f}**")
 
-    # Show values
     st.write(f"- Porosity: **{p:.3f}**")
     st.write(f"- Pore Size: **{ps:.2f} µm**")
     st.write(f"- Fiber Angle: **{a:.2f}°**")
     st.write(f"- Wettability: **{w:.2f}°**")
 
     # Radar chart
-    categories = ["Porosity", "Pore Size", "Fiber Angle", "Wettability"]
+    labels = ["Porosity", "Pore Size", "Fiber Angle", "Wettability"]
     values = [p, ps, a, w]
 
     radar2 = go.Figure()
     radar2.add_trace(go.Scatterpolar(
         r=values + [values[0]],
-        theta=categories + [categories[0]],
+        theta=labels + [labels[0]],
         fill='toself'
     ))
     radar2.update_layout(height=400, showlegend=False)
     st.plotly_chart(radar2, use_container_width=True)
 
-    # Store to session state
+    # Save to session_state for auto-fill
     if st.button("Use These Parameters", use_container_width=True):
         st.session_state.opt_params = best_params
         st.experimental_rerun()
@@ -283,7 +282,7 @@ if st.button("Find Optimal Parameters", use_container_width=True):
 st.markdown("### Recommended High-Performance Ranges")
 
 st.info("""
-Values that commonly produce **High** performance:
+Ranges associated with **High** performance:
 
 - Porosity: **0.70 – 0.78**
 - Pore Size: **30 – 45 µm**
